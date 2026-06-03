@@ -286,6 +286,7 @@ def main():
     pending_param_id = None
     active_param_id = 1
     copRList = []
+    copLList = []
     tsentList = []
     trecvList = []
 
@@ -325,16 +326,19 @@ def main():
         # Check if we have received first mocap data
         if mocap_trigger.first_data_received.is_set():
             copR = mocap_trigger.send_copR
+            copL = mocap_trigger.send_copL
             time_sent = mocap_trigger.send_time
             time_recv = mocap_trigger.recv_time
+            time_needed = time_recv - time_sent
             # print(copR)
             copRList.append(copR)
+            copLList.append(copL)
             tsentList.append(time_sent)
             trecvList.append(time_recv)
 
             with open("output.csv", "a", newline="", encoding="utf-8") as f:
                 writer = csv.writer(f)
-                writer.writerow([copR, time_sent, time_recv])
+                writer.writerow([copR, copL, time_recv])
 
             
         else:
