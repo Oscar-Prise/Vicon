@@ -80,40 +80,7 @@ def safe_gpio_cleanup():
         print(f"Error during GPIO cleanup: {e}")
 
 trigger_flag = 0
-
-#! it's better to rebuild the whole exo class
-class Exo:
-    def __init__(self,):
-
-        self.control_freq_Hz = 100
-        self.frame_length = 95  # Window size (in frame)
-        self.torque_limit = 17.0
-
-        # biotorque parameters
-        self.scale_factor = 0
-        self.delay_factor = 0 # Number of frames to delay the torque command
-        self.duration = 0
-
-        _ = input("Press Enter to initialize RobStride RS-02 motors: ")
-        self.mtr_comms = RobStrideMotorGroup(
-            can_id_L=1,
-            can_id_R=2,
-            channel="can0",
-            torque_limit=self.torque_limit,
-        )
-        self.mtr_comms.connect()
-
-    def update_readings(self):
-        return self.mtr_comms.update_readings(degrees=True)
-
-    def set_torque(self, torque_l, torque_r):
-        self.mtr_comms.set_torque(torque_l, torque_r)
-
-    def disconnect(self):
-        self.mtr_comms.set_torque(0.0, 0.0)
-        time.sleep(0.1)
-        self.mtr_comms.disconnect()
-
+motors = None
 
 #! Send telemetry are just teleplot which i can just use ilseung's is way easier
 # Telemetry function for real-time data visualization
@@ -191,7 +158,7 @@ def save_data(start_rec_sec=0, trial_time_sec=None):
 def exit_signal_handler(sig, frame):
     print("Signal received, initiating shutdown...")    
     
-    Exo.disconnect()
+    motors.disconnect()
 
     save_data(trial_start_sec, target_duration_sec)
     safe_gpio_cleanup()  # 안전한 GPIO 정리 함수 사용
@@ -202,7 +169,7 @@ def exit_signal_handler(sig, frame):
 
 def main():
     # include global variables that need to be reassigned inside the main function
-    global data_to_save, Exo
+    global data_to_save, motors
     # duration = 0.5
 
     # Initialize GPIO in main process only (not in spawned inference worker)
@@ -212,13 +179,22 @@ def main():
 
 
     # Initialize the exoskeleton
-    Exo = Exo()
+    motors = RobStrideMotorGroup(
+        can_id_L=1,
+        can_id_R=2,
+        channel="can0",
+        torque_limit=17.0,
+        offset_samples=50,
+        control_freq_Hz=100,
+        frame_length=95,
+    )
+    motors.connect()
 
     current_pos_L, current_vel_L = 0.0, 0.0
     current_pos_R, current_vel_R = 0.0, 0.0
 
     # Setting for the exiting process
-    atexit.register(lambda: (Exo.disconnect(), safe_gpio_cleanup()))
+    atexit.register(lambda: (motors.disconnect(), safe_gpio_cleanup()))
     signal.signal(signal.SIGINT, exit_signal_handler)
 
     # Maria
@@ -301,7 +277,7 @@ def main():
         # (
         #     current_pos_L, current_vel_L, current_torque_L,
         #     current_pos_R, current_vel_R, current_torque_R,
-        # ) = Exo.update_readings()
+        # ) = motors.update_readings()
 
         data_to_save['mtr_pos_L'].append(current_pos_L); data_to_save['mtr_pos_R'].append(-current_pos_R)
         data_to_save['mtr_vel_L'].append(current_vel_L); data_to_save['mtr_vel_R'].append(-current_vel_R)
@@ -312,11 +288,11 @@ def main():
 
         if exo_ON == False: motor_cmd_val_L, motor_cmd_val_R = 0.0, 0.0 # use this for Exo off condition
 
-        Exo.set_torque(motor_cmd_val_L, motor_cmd_val_R)
+        motors.set_torque(motor_cmd_val_L, motor_cmd_val_R)
         (
             current_pos_L, current_vel_L, current_torque_L,
             current_pos_R, current_vel_R, current_torque_R,
-        ) = Exo.update_readings() 
+        ) = motors.update_readings() 
 
         data_to_save['mtr_cmd_L'].append(motor_cmd_val_L)
         data_to_save['mtr_cmd_R'].append(motor_cmd_val_R)
@@ -377,11 +353,11 @@ def main():
         sendBatchTelemetry(telemetry_data)
 
         # 11. Wait for the time to reach the next clock cycle
-        if (time.time() - start_time) > (start_index / Exo.control_freq_Hz):
+        if (time.time() - start_time) > (start_index / motors.control_freq_Hz):
             pass
-            # print("Loop time exceeded: ", (time.time() - start_time) - (start_index / Exo.control_freq_Hz))
+            # print("Loop time exceeded: ", (time.time() - start_time) - (start_index / motors.control_freq_Hz))
         else:
-            while (time.time() - start_time) < (start_index / Exo.control_freq_Hz):
+            while (time.time() - start_time) < (start_index / motors.control_freq_Hz):
                 pass
         data_to_save['timestamp'].append(time.time()-start_time)
         start_index += 1
