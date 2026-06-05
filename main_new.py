@@ -18,10 +18,11 @@ subject = 'AB01'  # Change this for different subjects
 trial_start_sec = 1
 target_duration_sec =31
 target_time_range = 31
-exo_ON = False
+exo_ON = True
 
 # Trigger setting
-trigger_type = "mocap"  # "mocap" or "typing"
+# trigger_type = "mocap"  # "mocap" or "typing"
+trigger_type = "typing" 
 
 # Body mass setting
 body_mass_kg = 80 # kg
@@ -240,6 +241,7 @@ def main():
         logging_started = True
 
     # Main control loop
+    trigger = None
     while True:
 
        
@@ -248,30 +250,30 @@ def main():
 
         # 1. Read the motor encoder values
         # Check if we have received first mocap data
-        if mocap_trigger.first_data_received.is_set():
-            copR = mocap_trigger.send_copR
-            copL = mocap_trigger.send_copL
-            # print(copR)
-            time_sent = mocap_trigger.send_time
-            time_recv = mocap_trigger.recv_time
-            Frz = mocap_trigger.send_Frz
-            Flz = mocap_trigger.send_Flz
+        if trigger_type == "mocap" and mocap_trigger is not None:
+            if mocap_trigger.first_data_received.is_set():
+                copR = mocap_trigger.send_copR
+                copL = mocap_trigger.send_copL
+                # print(copR)
+                time_sent = mocap_trigger.send_time
+                time_recv = mocap_trigger.recv_time
+                Frz = mocap_trigger.send_Frz
+                Flz = mocap_trigger.send_Flz
 
-            # time_needed = time_recv - time_sent
-            # copRList.append(copR)
-            # copLList.append(copL)
-            # tsentList.append(time_sent)
-            # trecvList.append(time_recv)
+                # time_needed = time_recv - time_sent
+                # copRList.append(copR)
+                # copLList.append(copL)
+                # tsentList.append(time_sent)
+                # trecvList.append(time_recv)
 
-            with open("output.csv", "a", newline="", encoding="utf-8") as f:
-                writer = csv.writer(f)
-                writer.writerow([time_sent, time_recv, copR, copL, Frz, Flz])
+                with open("output.csv", "a", newline="", encoding="utf-8") as f:
+                    writer = csv.writer(f)
+                    writer.writerow([time_sent, time_recv, copR, copL, Frz, Flz])
 
-            
-        else:
-            # Mocap client is running but no data yet - use defaults3
-            trigger = None
-            mocap_data_available = False
+            else:
+                # Mocap client is running but no data yet - use defaults
+                trigger = None
+                mocap_data_available = False
     
 
         # (

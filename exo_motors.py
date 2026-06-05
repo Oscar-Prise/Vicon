@@ -46,7 +46,7 @@ class RobStrideMotorGroup:
     def _setup_can(self) -> None:
         cmds = [
             f"sudo ip link set {self.channel} down",
-            f"sudo ip link set {self.channel} type can bitrate 1000000 restart-ms 100 berr-reporting off"
+            f"sudo ip link set {self.channel} type can bitrate 1000000 restart-ms 100 berr-reporting off",
             f"sudo ip link set {self.channel} up",
         ]
         for cmd in cmds:
