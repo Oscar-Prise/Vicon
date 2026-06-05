@@ -95,8 +95,8 @@ class Mocap_trigger:
                         self.send_time = float(data.get("vicon_timestamp", 0.00))
                         self.send_copR = float(data.get("copR", 0.00))
                         self.send_copL = float(data.get("copL", 0.00))
-                        self.send_nomR = float(data.get("Frznorm", 0.00))
-                        self.send_nomL = float(data.get("Flznorm", 0.00))
+                        self.send_Frz = float(data.get("Frz", 0.00))
+                        self.send_Flz = float(data.get("Flz", 0.00))
                         # print(self.send_copR)
 
                         with self.lock:

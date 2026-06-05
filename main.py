@@ -11,6 +11,7 @@ import csv
 actuation = None
 
 PARAMS_CSV_PATH = os.path.join(os.path.dirname(__file__), "gen_final_paramstrap.csv")
+OUTPUT_DIR = 'test_run'
 
 # Trial setting
 subject = 'AB01'  # Change this for different subjects
@@ -79,7 +80,7 @@ def safe_gpio_cleanup():
         print(f"Error during GPIO cleanup: {e}")
 
 trigger_flag = 0
-
+#! it's better to rebuild the whole exo class
 class Exo:
     def __init__(self,):
 
@@ -94,8 +95,8 @@ class Exo:
 
         _ = input("Press Enter to initialize RobStride RS-02 motors: ")
         self.mtr_comms = RobStrideMotorGroup(
-            motor_id_left=1,
-            motor_id_right=2,
+            can_id_L=1,
+            can_id_R=2,
             channel="can0",
             torque_limit=self.torque_limit,
         )
@@ -113,22 +114,7 @@ class Exo:
         self.mtr_comms.disconnect()
 
 
-
-def trapezoid_profile(time_progress_percent):
-    """Return normalized trapezoid amplitude for progress in [0, 100]."""
-    if not (0.0 <= time_progress_percent <= 100.0):
-        return 0.0
-
-    normalized_x = time_progress_percent / 100.0
-    ramp_up_end = 0.20
-    ramp_down_start = 0.80
-
-    if normalized_x <= ramp_up_end:
-        return normalized_x / ramp_up_end
-    if normalized_x <= ramp_down_start:
-        return 1.0
-    return 1.0 - (normalized_x - ramp_down_start) / (1.0 - ramp_down_start)
-
+#! Send telemetry are just teleplot which i can just use ilseung's is way easier
 # Telemetry function for real-time data visualization
 def sendTelemetry(name, value):
     now = time.time() * 1000
@@ -187,14 +173,16 @@ def save_data(start_rec_sec=0, trial_time_sec=None):
     if 'gpio_output' in sliced_data and sliced_data['gpio_output'] is not None:
         motor_data_keys.append('gpio_output')
     
+    os.makedirs(OUTPUT_DIR, exist_ok=True)
+
     df_mtr = pd.DataFrame({k: sliced_data[k] for k in motor_data_keys})
-    df_mtr.to_csv(f'AB07_Validation/{trial_name}_input_motor.csv', index=False)
+    df_mtr.to_csv(f'{OUTPUT_DIR}/{trial_name}_input_motor.csv', index=False)
     print(f'Motor Data saved to {trial_name}_input_motor.csv')
     print('Dimensions:', df_mtr.shape)
 
     # Save motor command data
     df_torque = pd.DataFrame({k: sliced_data[k] for k in ['time', 'mtr_cmd_L', 'mtr_cmd_R', 'actual_torque_L', 'actual_torque_R', 'gpio_output']})
-    df_torque.to_csv(f'AB07_Validation/{trial_name}_output_torque.csv', index=False)
+    df_torque.to_csv(f'{OUTPUT_DIR}/{trial_name}_output_torque.csv', index=False)
     print(f'Torque data saved to {trial_name}_output_torque.csv')
     print('Dimensions:', df_torque.shape)
     
@@ -286,18 +274,21 @@ def main():
         if mocap_trigger.first_data_received.is_set():
             copR = mocap_trigger.send_copR
             copL = mocap_trigger.send_copL
+            # print(copR)
             time_sent = mocap_trigger.send_time
             time_recv = mocap_trigger.recv_time
-            time_needed = time_recv - time_sent
-            # print(copR)
-            copRList.append(copR)
-            copLList.append(copL)
-            tsentList.append(time_sent)
-            trecvList.append(time_recv)
+            Frz = mocap_trigger.send_Frz
+            Flz = mocap_trigger.send_Flz
+
+            # time_needed = time_recv - time_sent
+            # copRList.append(copR)
+            # copLList.append(copL)
+            # tsentList.append(time_sent)
+            # trecvList.append(time_recv)
 
             with open("output.csv", "a", newline="", encoding="utf-8") as f:
                 writer = csv.writer(f)
-                writer.writerow([copR, copL, time_recv])
+                writer.writerow([time_sent, time_recv, copR, copL, Frz, Flz])
 
             
         else:
@@ -306,27 +297,26 @@ def main():
             mocap_data_available = False
     
 
-        (
-            current_pos_L, current_vel_L, current_torque_L,
-            current_pos_R, current_vel_R, current_torque_R,
-        ) = Exo.update_readings()
+        # (
+        #     current_pos_L, current_vel_L, current_torque_L,
+        #     current_pos_R, current_vel_R, current_torque_R,
+        # ) = Exo.update_readings()
 
         data_to_save['mtr_pos_L'].append(current_pos_L); data_to_save['mtr_pos_R'].append(-current_pos_R)
         data_to_save['mtr_vel_L'].append(current_vel_L); data_to_save['mtr_vel_R'].append(-current_vel_R)
 
-        # 5. Trapezoid profile generation
-        profile_norm = 0.0
-        if actuation_started and actuation_start_time is not None and Exo.duration > 0:
-            elapsed = time.time() - actuation_start_time
-            progress_percent = (elapsed / Exo.duration) * 100.0
-            profile_norm = trapezoid_profile(progress_percent)
-
-        motor_cmd_val_L = 0
-        motor_cmd_val_R = 0
+        motor_cmd_val_L = 1
+        motor_cmd_val_R = -1
+    
 
         if exo_ON == False: motor_cmd_val_L, motor_cmd_val_R = 0.0, 0.0 # use this for Exo off condition
 
         Exo.set_torque(motor_cmd_val_L, motor_cmd_val_R)
+        (
+            current_pos_L, current_vel_L, current_torque_L,
+            current_pos_R, current_vel_R, current_torque_R,
+        ) = Exo.update_readings() 
+
         data_to_save['mtr_cmd_L'].append(motor_cmd_val_L)
         data_to_save['mtr_cmd_R'].append(motor_cmd_val_R)
         data_to_save['actual_torque_L'].append(current_torque_L)

@@ -54,6 +54,7 @@ class RobStrideMotorGroup:
         self.bus.enable(MOTOR_LEFT)
         self.bus.enable(MOTOR_RIGHT)
         time.sleep(0.3)
+        self.set_torque_lr(0.0, 0.0)
         self._calibrate_offsets()
 
     def disconnect(self) -> None:
@@ -63,6 +64,7 @@ class RobStrideMotorGroup:
     def _calibrate_offsets(self) -> None:
         offsets = {MOTOR_LEFT: [], MOTOR_RIGHT: []}
         for _ in range(self.offset_samples):
+            self.set_torque_lr(0.0, 0.0)   # ← ADD HERE each iteration
             for motor in (MOTOR_LEFT, MOTOR_RIGHT):
                 pos, _, _, _ = self.bus.read_operation_frame(motor)
                 offsets[motor].append(pos)
