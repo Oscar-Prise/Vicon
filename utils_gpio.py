@@ -40,7 +40,7 @@ class GpioPulse:
             print(f"Error during GPIO cleanup: {e}")
 
 
-class TrialPulseScheduler:
+class SyncPulse:
     """Send two short GPIO pulses at configured times after trial start."""
 
     def __init__(

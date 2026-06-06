@@ -6,7 +6,7 @@ import scipy.signal as sp_signal
 from scipy.signal import butter, filtfilt
 from Header_Mocap_trigger_protocolTest import Mocap_trigger
 from utils_motors import RobStrideMotorGroup
-from utils_gpio import GpioPulse, TrialPulseScheduler
+from utils_gpio import GpioPulse, SyncPulse
 from utils_teleplot import Teleplot
 import csv
 
@@ -26,7 +26,7 @@ duration = 0
 body_mass_kg = 80
 
 # Trigger: "mocap" or "typing"
-trigger_type = "typing"
+trigger_type = "mocap"
 
 # Output paths
 OUTPUT_DIR = 'test_run'
@@ -45,8 +45,8 @@ torque_limit = 17.0
 offset_samples = 50
 control_freq_Hz = 100
 frame_length = 95
-motor_cmd_L = 1.0   # Nm, used when exo_ON
-motor_cmd_R = -1.0  # Nm, used when exo_ON
+motor_cmd_L = 0.0   # Nm, used when exo_ON
+motor_cmd_R = 0.0  # Nm, used when exo_ON
 
 # Teleplot (live UDP telemetry)
 teleplot_host = "127.0.0.1"
@@ -65,7 +65,9 @@ trial_name = None
 # data to be saved (changed to lists for efficient appending)
 data_to_save = {
     "timestamp": [],
-    "mtr_cmd_L": [], "mtr_cmd_R": [],    "mtr_pos_L": [], "mtr_pos_R": [],    "mtr_vel_L": [], "mtr_vel_R": [],
+    "mtr_cmd_L": [], "mtr_cmd_R": [], 
+    "mtr_pos_L": [], "mtr_pos_R": [], 
+    "mtr_vel_L": [], "mtr_vel_R": [],
     "actual_torque_L": [], "actual_torque_R": [],
     "gpio_output": []  # GPIO 
 }
@@ -75,6 +77,7 @@ mocap_trigger = None  # Will be initialized in __main__
 gpio_pulse = None
 motors = None
 teleplot = None
+
 # Function to save all collected data
 def save_data(start_rec_sec=0, trial_time_sec=None):
     global data_to_save
@@ -150,7 +153,7 @@ def main():
 
     gpio_pulse = GpioPulse(pin=gpio_pin)
     gpio_pulse.setup()
-    pulse_scheduler = TrialPulseScheduler(
+    pulse_scheduler = SyncPulse(
         gpio_pulse,
         first_at_sec=gpio_first_pulse_sec,
         second_at_sec=target_time_range,
