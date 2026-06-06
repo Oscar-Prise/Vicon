@@ -1,39 +1,66 @@
 #FUll protocol script for trapazoid profile
-import time, dataclasses, enum, signal, os, atexit, socket, gc, threading
+import time, dataclasses, enum, signal, os, atexit, gc, threading
 import numpy as np
 import pandas as pd
 import scipy.signal as sp_signal
 from scipy.signal import butter, filtfilt
 from Header_Mocap_trigger_protocolTest import Mocap_trigger
-import Jetson.GPIO as GPIO
-from exo_motors import RobStrideMotorGroup
+from utils_motors import RobStrideMotorGroup
+from utils_gpio import GpioPulse, TrialPulseScheduler
+from utils_teleplot import Teleplot
 import csv
-actuation = None
 
-PARAMS_CSV_PATH = os.path.join(os.path.dirname(__file__), "gen_final_paramstrap.csv")
-OUTPUT_DIR = 'test_run'
+# =============================================================================
+# Configuration — edit before each trial
+# =============================================================================
 
-# Trial setting
-subject = 'AB01'  # Change this for different subjects
+# Trial
+subject = 'AB01'
 trial_start_sec = 1
-target_duration_sec =31
+target_duration_sec = 31
 target_time_range = 31
-exo_ON = False
-
-# Trigger setting
-trigger_type = "mocap"  # "mocap" or "typing"
-
-# Body mass setting
-body_mass_kg = 80 # kg
-
+exo_ON = True
 scale_factor_percent = 0
 delay_factor = 0
 duration = 0
+body_mass_kg = 80
+
+# Trigger: "mocap" or "typing"
+trigger_type = "typing"
+
+# Output paths
+OUTPUT_DIR = 'test_run'
+mocap_log_csv = 'output.csv'
+
+# GPIO sync pulses (for Vicon / external recording)
+gpio_pin = 7
+gpio_first_pulse_sec = 2.0
+gpio_pulse_duration_sec = 0.05
+
+# RobStride motors
+can_id_L = 1
+can_id_R = 2
+motor_channel = "can0"
+torque_limit = 17.0
+offset_samples = 50
+control_freq_Hz = 100
+frame_length = 95
+motor_cmd_L = 1.0   # Nm, used when exo_ON
+motor_cmd_R = -1.0  # Nm, used when exo_ON
+
+# Teleplot (live UDP telemetry)
+teleplot_host = "127.0.0.1"
+teleplot_port = 47269
+
+# Vicon / mocap server
+mocap_server_ip = "172.24.44.177"
+mocap_port = 11
+
+# =============================================================================
+# Runtime state (set during execution — do not edit)
+# =============================================================================
 trial_num = None
 trial_name = None
-
-# scale_factor = scale_factor_percent/100
-# delay_factor = int(delay_factor/10)
 
 # data to be saved (changed to lists for efficient appending)
 data_to_save = {
@@ -44,96 +71,10 @@ data_to_save = {
 }
 
 # Global variables
-GPIO_PIN = 7  # Define pin number globally
 mocap_trigger = None  # Will be initialized in __main__
-
-def send_gpio_pulse_start():
-    """Start a GPIO pulse by setting pin HIGH"""
-    try:
-        GPIO.output(GPIO_PIN, GPIO.HIGH)
-        print("GPIO pulse started (HIGH)")
-    except Exception as e:
-        print(f"Error starting GPIO pulse: {e}")
-
-def send_gpio_pulse_end():
-    """End a GPIO pulse by setting pin LOW"""
-    try:
-        GPIO.output(GPIO_PIN, GPIO.LOW)
-        print("GPIO pulse ended (LOW)")
-    except Exception as e:
-        print(f"Error ending GPIO pulse: {e}")
-
-def get_gpio_output_state():
-    """Get current GPIO output pin state (0 or 1)"""
-    try:
-        return int(GPIO.input(GPIO_PIN))
-    except:
-        # if GPIO not initialized or error occurs
-        return 0
-
-def safe_gpio_cleanup():
-    """GPIO """
-    try:
-        GPIO.cleanup()
-        print("GPIO cleaned up successfully")
-    except Exception as e:
-        print(f"Error during GPIO cleanup: {e}")
-
-trigger_flag = 0
-
-#! it's better to rebuild the whole exo class
-class Exo:
-    def __init__(self,):
-
-        self.control_freq_Hz = 100
-        self.frame_length = 95  # Window size (in frame)
-        self.torque_limit = 17.0
-
-        # biotorque parameters
-        self.scale_factor = 0
-        self.delay_factor = 0 # Number of frames to delay the torque command
-        self.duration = 0
-
-        _ = input("Press Enter to initialize RobStride RS-02 motors: ")
-        self.mtr_comms = RobStrideMotorGroup(
-            can_id_L=1,
-            can_id_R=2,
-            channel="can0",
-            torque_limit=self.torque_limit,
-        )
-        self.mtr_comms.connect()
-
-    def update_readings(self):
-        return self.mtr_comms.update_readings(degrees=True)
-
-    def set_torque(self, torque_l, torque_r):
-        self.mtr_comms.set_torque(torque_l, torque_r)
-
-    def disconnect(self):
-        self.mtr_comms.set_torque(0.0, 0.0)
-        time.sleep(0.1)
-        self.mtr_comms.disconnect()
-
-
-#! Send telemetry are just teleplot which i can just use ilseung's is way easier
-# Telemetry function for real-time data visualization
-def sendTelemetry(name, value):
-    now = time.time() * 1000
-    msg = name+":"+str(now)+":"+str(value)+"|g"
-    sock.sendto(msg.encode(), teleplotAddr)
-
-def sendBatchTelemetry(data_dict):
-    now = time.time() * 1000
-    try:
-        for name, value in data_dict.items():
-            msg = name + ":" + str(now) + ":" + str(value) + "|g"
-            sock.sendto(msg.encode(), teleplotAddr)
-
-        return True  # Successfully sent
-    except Exception as e:
-        print(f"Error in sendBatchTelemetry: {e}")
-        return False
-
+gpio_pulse = None
+motors = None
+teleplot = None
 # Function to save all collected data
 def save_data(start_rec_sec=0, trial_time_sec=None):
     global data_to_save
@@ -155,11 +96,11 @@ def save_data(start_rec_sec=0, trial_time_sec=None):
         return
     
     # Calculate start and end indices for slicing
-    start_idx = int(start_rec_sec * 100)  # 100 Hz data collection rate
+    start_idx = int(start_rec_sec * control_freq_Hz)
     end_idx = min_len
     
     if trial_time_sec:
-        end_idx = min(min_len, int((start_rec_sec + trial_time_sec) * 100))
+        end_idx = min(min_len, int((start_rec_sec + trial_time_sec) * control_freq_Hz))
     
     print(f'Slicing data from {start_rec_sec}s to {(start_rec_sec + (trial_time_sec or (min_len/100 - start_rec_sec)))}s')
     print(f'Index range: {start_idx} to {end_idx}')
@@ -191,10 +132,13 @@ def save_data(start_rec_sec=0, trial_time_sec=None):
 def exit_signal_handler(sig, frame):
     print("Signal received, initiating shutdown...")    
     
-    Exo.disconnect()
+    motors.disconnect()
 
     save_data(trial_start_sec, target_duration_sec)
-    safe_gpio_cleanup()  # 안전한 GPIO 정리 함수 사용
+    if gpio_pulse is not None:
+        gpio_pulse.cleanup()
+    if teleplot is not None:
+        teleplot.close()
     gc.collect()
 
     print("Exiting program")
@@ -202,31 +146,37 @@ def exit_signal_handler(sig, frame):
 
 def main():
     # include global variables that need to be reassigned inside the main function
-    global data_to_save, Exo
-    # duration = 0.5
+    global data_to_save, motors, gpio_pulse
 
-    # Initialize GPIO in main process only (not in spawned inference worker)
-    GPIO.setmode(GPIO.BOARD)
-    GPIO.setup(GPIO_PIN, GPIO.OUT, initial=GPIO.LOW)
-    print("GPIO initialized successfully")
+    gpio_pulse = GpioPulse(pin=gpio_pin)
+    gpio_pulse.setup()
+    pulse_scheduler = TrialPulseScheduler(
+        gpio_pulse,
+        first_at_sec=gpio_first_pulse_sec,
+        second_at_sec=target_time_range,
+        pulse_duration_sec=gpio_pulse_duration_sec,
+    )
 
-
-    # Initialize the exoskeleton
-    Exo = Exo()
+    motors = RobStrideMotorGroup(
+        can_id_L=can_id_L,
+        can_id_R=can_id_R,
+        channel=motor_channel,
+        torque_limit=torque_limit,
+        offset_samples=offset_samples,
+        control_freq_Hz=control_freq_Hz,
+        frame_length=frame_length,
+    )
+    motors.connect()
 
     current_pos_L, current_vel_L = 0.0, 0.0
     current_pos_R, current_vel_R = 0.0, 0.0
 
     # Setting for the exiting process
-    atexit.register(lambda: (Exo.disconnect(), safe_gpio_cleanup()))
+    atexit.register(lambda: (motors.disconnect(), gpio_pulse.cleanup()))
     signal.signal(signal.SIGINT, exit_signal_handler)
 
     # Maria
     logging_started = False
-    first_pulse_sent = False
-    first_pulse_end_time = None
-    second_pulse_sent = False
-    second_pulse_end_time = None
     start_time = None
     start_index = 1
     actuation_started = False
@@ -264,6 +214,7 @@ def main():
         logging_started = True
 
     # Main control loop
+    trigger = None
     while True:
 
        
@@ -272,51 +223,51 @@ def main():
 
         # 1. Read the motor encoder values
         # Check if we have received first mocap data
-        if mocap_trigger.first_data_received.is_set():
-            copR = mocap_trigger.send_copR
-            copL = mocap_trigger.send_copL
-            # print(copR)
-            time_sent = mocap_trigger.send_time
-            time_recv = mocap_trigger.recv_time
-            Frz = mocap_trigger.send_Frz
-            Flz = mocap_trigger.send_Flz
+        if trigger_type == "mocap" and mocap_trigger is not None:
+            if mocap_trigger.first_data_received.is_set():
+                copR = mocap_trigger.send_copR
+                copL = mocap_trigger.send_copL
+                # print(copR)
+                time_sent = mocap_trigger.send_time
+                time_recv = mocap_trigger.recv_time
+                Frz = mocap_trigger.send_Frz
+                Flz = mocap_trigger.send_Flz
 
-            # time_needed = time_recv - time_sent
-            # copRList.append(copR)
-            # copLList.append(copL)
-            # tsentList.append(time_sent)
-            # trecvList.append(time_recv)
+                # time_needed = time_recv - time_sent
+                # copRList.append(copR)
+                # copLList.append(copL)
+                # tsentList.append(time_sent)
+                # trecvList.append(time_recv)
 
-            with open("output.csv", "a", newline="", encoding="utf-8") as f:
-                writer = csv.writer(f)
-                writer.writerow([time_sent, time_recv, copR, copL, Frz, Flz])
+                with open(mocap_log_csv, "a", newline="", encoding="utf-8") as f:
+                    writer = csv.writer(f)
+                    writer.writerow([time_sent, time_recv, copR, copL, Frz, Flz])
 
-            
-        else:
-            # Mocap client is running but no data yet - use defaults3
-            trigger = None
-            mocap_data_available = False
+            else:
+                # Mocap client is running but no data yet - use defaults
+                trigger = None
+                mocap_data_available = False
     
 
         # (
         #     current_pos_L, current_vel_L, current_torque_L,
         #     current_pos_R, current_vel_R, current_torque_R,
-        # ) = Exo.update_readings()
+        # ) = motors.update_readings()
 
         data_to_save['mtr_pos_L'].append(current_pos_L); data_to_save['mtr_pos_R'].append(-current_pos_R)
         data_to_save['mtr_vel_L'].append(current_vel_L); data_to_save['mtr_vel_R'].append(-current_vel_R)
 
-        motor_cmd_val_L = 1
-        motor_cmd_val_R = -1
-    
+        motor_cmd_val_L = motor_cmd_L
+        motor_cmd_val_R = motor_cmd_R
 
-        if exo_ON == False: motor_cmd_val_L, motor_cmd_val_R = 0.0, 0.0 # use this for Exo off condition
+        if not exo_ON:
+            motor_cmd_val_L, motor_cmd_val_R = 0.0, 0.0
 
-        Exo.set_torque(motor_cmd_val_L, motor_cmd_val_R)
+        motors.set_torque(motor_cmd_val_L, motor_cmd_val_R)
         (
             current_pos_L, current_vel_L, current_torque_L,
             current_pos_R, current_vel_R, current_torque_R,
-        ) = Exo.update_readings() 
+        ) = motors.update_readings() 
 
         data_to_save['mtr_cmd_L'].append(motor_cmd_val_L)
         data_to_save['mtr_cmd_R'].append(motor_cmd_val_R)
@@ -329,59 +280,23 @@ def main():
             print(trigger)
             trigger = None
 
-        
-       
-
-        # GPIO 
         current_time = time.time() - start_time
-        
-       
-        if current_time >= (2) and not first_pulse_sent:
-            send_gpio_pulse_start()
-            first_pulse_sent = True
-            first_pulse_end_time = current_time + 0.05  
-            print("First pulse started 2 seconds after mocap trigger")
-        
-        
-        if first_pulse_sent and first_pulse_end_time and current_time >= first_pulse_end_time:
-            send_gpio_pulse_end()
-            first_pulse_end_time = None
-            print("First pulse ended")
-        
-   
-        if current_time >= (target_time_range) and not second_pulse_sent:
-            send_gpio_pulse_start()
-            second_pulse_sent = True
-            second_pulse_end_time = current_time + 0.05  # 200ms 펄스 지속시간
-            print(f'Second pulse started after {current_time} seconds')
-
-
-        if second_pulse_sent and second_pulse_end_time and current_time >= second_pulse_end_time:
-            send_gpio_pulse_end()
-            second_pulse_end_time = None
-            print("Second pulse ended")
-        # if current_time >= 31: ##small buffer, change as needed
-        #     break
-        # GPIO
-        data_to_save['gpio_output'].append(get_gpio_output_state())
+        pulse_scheduler.update(current_time)
+        data_to_save['gpio_output'].append(gpio_pulse.read_state())
         
 
-        # 9. Loop time
-        time_0 = time.time()
-        # loop_time = time_0 - time_1
-        
-        # 10. Send telemetry data
-        telemetry_data = {
-            "gpio_output": get_gpio_output_state(),
-        }
-        sendBatchTelemetry(telemetry_data)
+        # 10. Stream live motor data to Teleplot
+        teleplot.sendValue('pos_L', current_pos_L)
+        teleplot.sendValue('pos_R', current_pos_R)
+        teleplot.sendValue('cmd_L', motor_cmd_val_L)
+        teleplot.sendValue('cmd_R', motor_cmd_val_R)
 
-        # 11. Wait for the time to reach the next clock cycle
-        if (time.time() - start_time) > (start_index / Exo.control_freq_Hz):
+        # Wait for the time to reach the next clock cycle
+        if (time.time() - start_time) > (start_index / motors.control_freq_Hz):
             pass
-            # print("Loop time exceeded: ", (time.time() - start_time) - (start_index / Exo.control_freq_Hz))
+            # print("Loop time exceeded: ", (time.time() - start_time) - (start_index / motors.control_freq_Hz))
         else:
-            while (time.time() - start_time) < (start_index / Exo.control_freq_Hz):
+            while (time.time() - start_time) < (start_index / motors.control_freq_Hz):
                 pass
         data_to_save['timestamp'].append(time.time()-start_time)
         start_index += 1
@@ -396,14 +311,10 @@ if __name__ == '__main__':
     trial_num = int(input("Enter trial number: "))
     trial_name = f'{subject}_{trial_num}_scale_{scale_factor_percent}'
 
-    # Teleplot setting
-    os.system('echo nc -u -w0 127.0.0.1 47269')
-    teleplotAddr = ("127.0.0.1", 47269)
-    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    teleplot = Teleplot(teleplot_host, teleplot_port)
 
-    # Initialize mocap in main process only
     if trigger_type == "mocap":
-        mocap_trigger = Mocap_trigger(server_ip="172.24.44.177", port_number=11)
+        mocap_trigger = Mocap_trigger(server_ip=mocap_server_ip, port_number=mocap_port)
         mocap_trigger.start_client()
         mocap_thread = threading.Thread(target=mocap_trigger.stream_data, daemon=True)
         mocap_thread.start()

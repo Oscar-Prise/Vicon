@@ -1,10 +1,7 @@
 """RobStride RS-02 motor interface for Vicon exoskeleton protocols."""
-
 import os
 import time
-
 import numpy as np
-
 from robstride_dynamics import Motor, RobstrideBus
 
 RAD_TO_DEG = 180.0 / np.pi
