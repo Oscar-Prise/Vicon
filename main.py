@@ -219,8 +219,7 @@ def main():
         print(f"Started Vicon time: {start_time}")
 
         
-    elif trigger_type == "typing" and not logging_started:
-        # typing 모드는 위에서 이미 처리됨            
+    elif trigger_type == "typing" and not logging_started:           
         start_time = time.time()
         logging_started = True
 
@@ -260,31 +259,29 @@ def main():
                 # Mocap client is running but no data yet - use defaults
                 trigger = None
                 mocap_data_available = False
-    
-
-        # (
-        #     current_pos_L, current_vel_L, current_torque_L,
-        #     current_pos_R, current_vel_R, current_torque_R,
-        # ) = motors.update_readings()
 
         data_to_save['mtr_pos_L'].append(current_pos_L); data_to_save['mtr_pos_R'].append(-current_pos_R)
         data_to_save['mtr_vel_L'].append(current_vel_L); data_to_save['mtr_vel_R'].append(-current_vel_R)
 
         if exo_ON and mocap_data_available:
-            motor_cmd_val_L, motor_cmd_val_R = hip_torque_profile.torque_from_percent_gc_lr(
+            cmdL, cmdR = hip_torque_profile.torque_from_percent_gc_lr(
                 percent_gcL, percent_gcR
             )
         else:
-            motor_cmd_val_L, motor_cmd_val_R = 0.0, 0.0
+            cmdL, cmdR = 0.0, 0.0
+            pcmdL, pcmdR = hip_torque_profile.torque_from_percent_gc_lr(
+                percent_gcL, percent_gcR
+            )
+            print(percent_gcL,percent_gcR,pcmdL,pcmdR)
 
-        motors.set_torque(motor_cmd_val_L, motor_cmd_val_R)
+        motors.set_torque(cmdL, cmdR)
         (
             current_pos_L, current_vel_L, current_torque_L,
             current_pos_R, current_vel_R, current_torque_R,
         ) = motors.update_readings() 
 
-        data_to_save['mtr_cmd_L'].append(motor_cmd_val_L)
-        data_to_save['mtr_cmd_R'].append(motor_cmd_val_R)
+        data_to_save['mtr_cmd_L'].append(pcmdL)
+        data_to_save['mtr_cmd_R'].append(pcmdR)
         data_to_save['actual_torque_L'].append(current_torque_L)
         data_to_save['actual_torque_R'].append(-current_torque_R)
 
@@ -304,8 +301,8 @@ def main():
         teleplot.sendValue('pos_R', current_pos_R)
         # teleplot.sendValue('gc_L', percent_gcL)
         # teleplot.sendValue('gc_R', percent_gcR)
-        teleplot.sendValue('cmd_L', motor_cmd_val_L)
-        teleplot.sendValue('cmd_R', motor_cmd_val_R)
+        teleplot.sendValue('cmd_L', cmdL)
+        teleplot.sendValue('cmd_R', cmdR)
 
         # Wait for the time to reach the next clock cycle
         if (time.time() - start_time) > (start_index / motors.control_freq_Hz):

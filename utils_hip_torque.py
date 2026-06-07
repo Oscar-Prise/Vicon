@@ -127,8 +127,8 @@ class HipTorqueProfile:
     ) -> tuple[float, float]:
         """Return (cmd_L, cmd_R) hip torques (Nm) for both legs."""
         return (
-            self.torque_from_percent_gc(percent_gc_l),
-            self.torque_from_percent_gc(percent_gc_r),
+            self.torque_from_percent_gc(percent_gc_l*100),
+            self.torque_from_percent_gc(percent_gc_r*100),
         )
 
 
