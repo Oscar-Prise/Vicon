@@ -8,6 +8,7 @@ from Header_Mocap_trigger_protocolTest import Mocap_trigger
 from utils_motors import RobStrideMotorGroup
 from utils_gpio import GpioPulse, SyncPulse
 from utils_teleplot import Teleplot
+from utils_hip_torque import HipTorqueProfile
 import csv
 
 # =============================================================================
@@ -19,11 +20,12 @@ subject = 'AB01'
 trial_start_sec = 1
 target_duration_sec = 31
 target_time_range = 31
-exo_ON = True
+exo_ON = False
 scale_factor_percent = 0
 delay_factor = 0
 duration = 0
 body_mass_kg = 80
+assistance_scale = 1.0  # 0–1, scales TBE spline torque (use scale_factor_percent/100 if preferred)
 
 # Trigger: "mocap" or "typing"
 trigger_type = "mocap"
@@ -45,8 +47,6 @@ torque_limit = 17.0
 offset_samples = 50
 control_freq_Hz = 100
 frame_length = 95
-motor_cmd_L = 0.0   # Nm, used when exo_ON
-motor_cmd_R = 0.0  # Nm, used when exo_ON
 
 # Teleplot (live UDP telemetry)
 teleplot_host = "127.0.0.1"
@@ -171,6 +171,12 @@ def main():
     )
     motors.connect()
 
+    hip_torque_profile = HipTorqueProfile(
+        body_mass_kg=body_mass_kg,
+        control_freq_Hz=control_freq_Hz,
+        assistance_scale=assistance_scale,
+    )
+
     current_pos_L, current_vel_L = 0.0, 0.0
     current_pos_R, current_vel_R = 0.0, 0.0
 
@@ -190,6 +196,8 @@ def main():
     copLList = []
     tsentList = []
     trecvList = []
+    percent_gcL, percent_gcR = 0.0, 0.0
+    mocap_data_available = False
 
     # Wait for the trigger to start the trial (Maria)
     if trigger_type == "mocap":
@@ -228,13 +236,15 @@ def main():
         # Check if we have received first mocap data
         if trigger_type == "mocap" and mocap_trigger is not None:
             if mocap_trigger.first_data_received.is_set():
-                copR = mocap_trigger.send_copR
-                copL = mocap_trigger.send_copL
-                # print(copR)
                 time_sent = mocap_trigger.send_time
                 time_recv = mocap_trigger.recv_time
-                Frz = mocap_trigger.send_Frz
-                Flz = mocap_trigger.send_Flz
+                # copR = mocap_trigger.send_copR
+                # copL = mocap_trigger.send_copL
+                # Frz = mocap_trigger.send_Frz
+                # Flz = mocap_trigger.send_Flz
+                percent_gcR = mocap_trigger.send_percent_gcR
+                percent_gcL = mocap_trigger.send_percent_gcL
+                mocap_data_available = True
 
                 # time_needed = time_recv - time_sent
                 # copRList.append(copR)
@@ -244,8 +254,8 @@ def main():
 
                 with open(mocap_log_csv, "a", newline="", encoding="utf-8") as f:
                     writer = csv.writer(f)
-                    writer.writerow([time_sent, time_recv, copR, copL, Frz, Flz])
-
+                    # writer.writerow([time_sent, time_recv, copR, copL, Frz, Flz])
+                    writer.writerow([time_sent, time_recv, percent_gcR, percent_gcL])
             else:
                 # Mocap client is running but no data yet - use defaults
                 trigger = None
@@ -260,10 +270,11 @@ def main():
         data_to_save['mtr_pos_L'].append(current_pos_L); data_to_save['mtr_pos_R'].append(-current_pos_R)
         data_to_save['mtr_vel_L'].append(current_vel_L); data_to_save['mtr_vel_R'].append(-current_vel_R)
 
-        motor_cmd_val_L = motor_cmd_L
-        motor_cmd_val_R = motor_cmd_R
-
-        if not exo_ON:
+        if exo_ON and mocap_data_available:
+            motor_cmd_val_L, motor_cmd_val_R = hip_torque_profile.torque_from_percent_gc_lr(
+                percent_gcL, percent_gcR
+            )
+        else:
             motor_cmd_val_L, motor_cmd_val_R = 0.0, 0.0
 
         motors.set_torque(motor_cmd_val_L, motor_cmd_val_R)
@@ -291,6 +302,8 @@ def main():
         # 10. Stream live motor data to Teleplot
         teleplot.sendValue('pos_L', current_pos_L)
         teleplot.sendValue('pos_R', current_pos_R)
+        # teleplot.sendValue('gc_L', percent_gcL)
+        # teleplot.sendValue('gc_R', percent_gcR)
         teleplot.sendValue('cmd_L', motor_cmd_val_L)
         teleplot.sendValue('cmd_R', motor_cmd_val_R)
 
