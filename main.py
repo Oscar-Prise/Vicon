@@ -8,7 +8,7 @@ from Header_Mocap_trigger_protocolTest import Mocap_trigger
 from utils_motors import RobStrideMotorGroup
 from utils_gpio import GpioPulse, SyncPulse
 from utils_teleplot import Teleplot
-from utils_hip_torque import HipTorqueProfile
+from t2_spline import HipTorqueProfile
 import csv
 
 # =============================================================================
@@ -21,11 +21,10 @@ trial_start_sec = 1
 target_duration_sec = 31
 target_time_range = 31
 exo_ON = False
-scale_factor_percent = 0
-delay_factor = 0
+scale_factor = 0.0  # 0–1, scales spline peak torque (0 = off, 1 = full profile)
+delay_factor = 0  # gait-cycle % shift along x-axis (positive = peaks occur later)
 duration = 0
 body_mass_kg = 80
-assistance_scale = 1.0  # 0–1, scales TBE spline torque (use scale_factor_percent/100 if preferred)
 
 # Trigger: "mocap" or "typing"
 trigger_type = "mocap"
@@ -174,7 +173,8 @@ def main():
     hip_torque_profile = HipTorqueProfile(
         body_mass_kg=body_mass_kg,
         control_freq_Hz=control_freq_Hz,
-        assistance_scale=assistance_scale,
+        scale_factor=scale_factor,
+        delay_percent_gc=delay_factor,
     )
 
     current_pos_L, current_vel_L = 0.0, 0.0
@@ -280,8 +280,8 @@ def main():
             current_pos_R, current_vel_R, current_torque_R,
         ) = motors.update_readings() 
 
-        data_to_save['mtr_cmd_L'].append(pcmdL)
-        data_to_save['mtr_cmd_R'].append(pcmdR)
+        data_to_save['mtr_cmd_L'].append(cmdL)
+        data_to_save['mtr_cmd_R'].append(cmdR)
         data_to_save['actual_torque_L'].append(current_torque_L)
         data_to_save['actual_torque_R'].append(-current_torque_R)
 
@@ -322,7 +322,7 @@ if __name__ == '__main__':
     # Prompt for trial number in parent process only (prevents child processes
     # created with multiprocessing 'spawn' from re-running the prompt)
     trial_num = int(input("Enter trial number: "))
-    trial_name = f'{subject}_{trial_num}_scale_{scale_factor_percent}'
+    trial_name = f'{subject}_{trial_num}_scale_{scale_factor}'
 
     teleplot = Teleplot(teleplot_host, teleplot_port)
 
