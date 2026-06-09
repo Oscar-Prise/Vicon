@@ -18,10 +18,10 @@ import csv
 # Trial
 subject = 'AB01'
 trial_start_sec = 1
-target_duration_sec = 31
-target_time_range = 31
-exo_ON = False
-scale_factor = 0.0  # 0–1, scales spline peak torque (0 = off, 1 = full profile)
+target_duration_sec = 61
+target_time_range = 61
+exo_ON = True
+scale_factor = 0.7  # 0–1, scales spline peak torque (0 = off, 1 = full profile)
 delay_factor = 0  # gait-cycle % shift along x-axis (positive = peaks occur later)
 duration = 0
 body_mass_kg = 80

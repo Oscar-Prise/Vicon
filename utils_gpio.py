@@ -47,7 +47,7 @@ class SyncPulse:
         self,
         gpio: GpioPulse,
         first_at_sec: float = 2.0,
-        second_at_sec: float = 31.0,
+        second_at_sec: float = 61.0,
         pulse_duration_sec: float = 0.05,
     ):
         self.gpio = gpio

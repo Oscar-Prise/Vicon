@@ -5,13 +5,13 @@ import pandas as pd
 
 
 BASE_DIR = Path(__file__).resolve().parent
-CSV_PATH = BASE_DIR / "test_run" / "AB01_1_scale_0_output_torque.csv"
-OUTPUT_PATH = BASE_DIR / "test_run" / "AB01_1_scale_0_output_torque_mtr_cmd_plot.png"
+CSV_PATH = BASE_DIR / "test_run" / "AB01_1_scale_0.7_output_torque.csv"
+OUTPUT_PATH = BASE_DIR / "test_run" / "AB01_1_scale_0.7_output_torque_mtr_cmd_plot.png"
 
 
 def main() -> None:
 	df = pd.read_csv(CSV_PATH)
-	slice_df = df.iloc[99:2500]
+	slice_df = df.iloc[500:4000]
 
 	plt.figure(figsize=(12, 5))
 	plt.plot(slice_df["time"], slice_df["mtr_cmd_L"], label="mtr_cmd_L", linewidth=1.5)
