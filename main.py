@@ -5,7 +5,7 @@ import pandas as pd
 import scipy.signal as sp_signal
 from scipy.signal import butter, filtfilt
 from Header_Mocap_trigger_protocolTest import Mocap_trigger
-from utils_motors import RobStrideMotorGroup
+from motors import make_motor_group
 from utils_gpio import GpioPulse, SyncPulse
 from utils_teleplot import Teleplot
 from t2_spline import HipTorqueProfile
@@ -38,14 +38,13 @@ gpio_pin = 7
 gpio_first_pulse_sec = 2.0
 gpio_pulse_duration_sec = 0.05
 
-# RobStride motors
+# Motors: "ak80-9" (CubeMars) or "robstride02"
+motor_type = "ak80-9"
 can_id_L = 1
 can_id_R = 2
 motor_channel = "can0"
-torque_limit = 17.0
-offset_samples = 50
+torque_limit = 17.0  # AK80-9 hard limit is 18 Nm
 control_freq_Hz = 100
-frame_length = 95
 
 # Teleplot (live UDP telemetry)
 teleplot_host = "127.0.0.1"
@@ -159,14 +158,13 @@ def main():
         pulse_duration_sec=gpio_pulse_duration_sec,
     )
 
-    motors = RobStrideMotorGroup(
+    motors = make_motor_group(
+        motor_type=motor_type,
         can_id_L=can_id_L,
         can_id_R=can_id_R,
         channel=motor_channel,
         torque_limit=torque_limit,
-        offset_samples=offset_samples,
         control_freq_Hz=control_freq_Hz,
-        frame_length=frame_length,
     )
     motors.connect()
 

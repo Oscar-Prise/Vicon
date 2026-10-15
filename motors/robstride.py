@@ -2,7 +2,7 @@
 import os
 import time
 import numpy as np
-from robstride_dynamics import Motor, RobstrideBus
+from .robstride_dynamics import Motor, RobstrideBus
 
 RAD_TO_DEG = 180.0 / np.pi
 
