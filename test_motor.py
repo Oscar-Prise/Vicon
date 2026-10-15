@@ -21,8 +21,8 @@ from utils_teleplot import Teleplot
 
 # Motor: "ak80-9" (CubeMars) or "robstride02"
 motor_type = "ak80-9"
-can_id_L = 1               # not responding on can0 yet
-can_id_R = 3
+can_id_L = 3
+can_id_R = 2
 motor_channel = "can0"
 torque_limit = 5.0          # Nm, hard clip on whatever is commanded
 control_freq_Hz = 100
@@ -110,6 +110,7 @@ def main():
 
             motors.set_torque(cmdL, cmdR)
             posL, velL, trqL, posR, velR, trqR = motors.update_readings()
+            posL, velL = -posL, -velL  # flexion positive on both sides
 
             teleplot.sendValue('pos_L', posL)
             teleplot.sendValue('pos_R', posR)

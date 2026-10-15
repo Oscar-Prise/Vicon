@@ -40,10 +40,10 @@ gpio_pulse_duration_sec = 0.05
 
 # Motors: "ak80-9" (CubeMars) or "robstride02"
 motor_type = "ak80-9"
-can_id_L = 1
+can_id_L = 3
 can_id_R = 2
 motor_channel = "can0"
-torque_limit = 17.0  # AK80-9 hard limit is 18 Nm
+torque_limit = 15.0  # AK80-9 hard limit is 18 Nm
 control_freq_Hz = 100
 
 # Teleplot (live UDP telemetry)
@@ -295,7 +295,7 @@ def main():
         
 
         # 10. Stream live motor data to Teleplot
-        teleplot.sendValue('pos_L', current_pos_L)
+        teleplot.sendValue('pos_L', -current_pos_L)  # flexion positive on both sides
         teleplot.sendValue('pos_R', current_pos_R)
         # teleplot.sendValue('gc_L', percent_gcL)
         # teleplot.sendValue('gc_R', percent_gcR)
