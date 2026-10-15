@@ -13,6 +13,7 @@ import numpy as np
 
 from motors import make_motor_group
 from t2_spline import HipTorqueProfile
+from utils_teleplot import Teleplot
 
 # =============================================================================
 # Configuration — edit before each test
@@ -20,8 +21,8 @@ from t2_spline import HipTorqueProfile
 
 # Motor: "ak80-9" (CubeMars) or "robstride02"
 motor_type = "ak80-9"
-can_id_L = 1
-can_id_R = 2
+can_id_L = 1               # not responding on can0 yet
+can_id_R = 3
 motor_channel = "can0"
 torque_limit = 5.0          # Nm, hard clip on whatever is commanded
 control_freq_Hz = 100
@@ -34,16 +35,21 @@ test_mode = "zero"
 test_torque_Nm = 0.0        # used by "constant"
 scale_factor = 0.0          # 0-1, scales torque (constant and spline)
 delay_factor = 0            # gait-cycle % shift of the spline (spline mode only)
-body_mass_kg = 80           # spline mode
+body_mass_kg = 74           # spline mode
 fake_gait_period_sec = 1.2  # spline mode: time for one 0-100% sweep
 
 # Run length and printing
 duration_sec = 30
 print_every_sec = 0.1
 
+# Teleplot (live UDP telemetry)
+teleplot_host = "127.0.0.1"
+teleplot_port = 47269
+
 # =============================================================================
 
 motors = None
+teleplot = Teleplot(teleplot_host, teleplot_port)
 
 
 def shutdown(*_):
@@ -105,6 +111,15 @@ def main():
             motors.set_torque(cmdL, cmdR)
             posL, velL, trqL, posR, velR, trqR = motors.update_readings()
 
+            teleplot.sendValue('pos_L', posL)
+            teleplot.sendValue('pos_R', posR)
+            teleplot.sendValue('vel_L', velL)
+            teleplot.sendValue('vel_R', velR)
+            teleplot.sendValue('trq_L', trqL)
+            teleplot.sendValue('trq_R', trqR)
+            teleplot.sendValue('cmd_L', cmdL)
+            teleplot.sendValue('cmd_R', cmdR)
+
             if t >= next_print:
                 print(f"{t:6.2f} | {posL:10.2f} {velL:9.2f} {trqL:7.2f} | "
                       f"{posR:10.2f} {velR:9.2f} {trqR:7.2f} | {cmdL:6.2f} {cmdR:6.2f}")
@@ -115,6 +130,7 @@ def main():
                 pass
     finally:
         motors.disconnect()
+        teleplot.close()
         print(f"Done: {k} loop iterations in {time.time() - t0:.1f}s "
               f"({k / max(time.time() - t0, 1e-9):.0f} Hz)")
 

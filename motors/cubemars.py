@@ -70,10 +70,12 @@ class _Motor(can.Listener):
         self.pos = 0.0   # rad
         self.vel = 0.0   # rad/s
         self.cur = 0.0   # A (reported as torque, as in AMP-Hip)
+        self.n_replies = 0
 
     def on_message_received(self, msg: can.Message) -> None:
         if msg.arbitration_id != REPLY_ID_BASE + self.can_id:
             return
+        self.n_replies += 1
         d = msg.data
         self.pos = struct.unpack(">h", bytes(d[0:2]))[0] * 0.1 * DEG2RAD
         self.vel = struct.unpack(">h", bytes(d[2:4]))[0] * 10.0 * DEG2RAD
@@ -131,6 +133,10 @@ class CubeMarsMotorGroup:
         # A zero-torque MIT frame enables the motor and starts its reply stream.
         self.set_torque(0.0, 0.0)
         time.sleep(0.5)
+        for name, m in self.motors.items():
+            if m.n_replies == 0:
+                print(f"WARNING: {name} (CAN ID {m.can_id}) did not reply; its readings will stay 0. "
+                      f"Check power, wiring and the motor's CAN ID.")
 
     def disconnect(self) -> None:
         if self.bus is None:
