@@ -20,7 +20,7 @@ subject = 'AB01'
 trial_start_sec = 1
 target_duration_sec = 61
 target_time_range = 61
-exo_ON = True
+exo_ON = False
 scale_factor = 0.7  # 0–1, scales spline peak torque (0 = off, 1 = full profile)
 delay_factor = 0  # gait-cycle % shift along x-axis (positive = peaks occur later)
 duration = 0
@@ -297,8 +297,8 @@ def main():
         # 10. Stream live motor data to Teleplot
         teleplot.sendValue('pos_L', -current_pos_L)  # flexion positive on both sides
         teleplot.sendValue('pos_R', current_pos_R)
-        # teleplot.sendValue('gc_L', percent_gcL)
-        # teleplot.sendValue('gc_R', percent_gcR)
+        teleplot.sendValue('gc_L', percent_gcL)
+        teleplot.sendValue('gc_R', percent_gcR)
         teleplot.sendValue('cmd_L', cmdL)
         teleplot.sendValue('cmd_R', cmdR)
 

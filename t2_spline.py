@@ -28,7 +28,7 @@ def spline_generator(
     gp_offset,
     peak_extension_torque,
     peak_flexion_torque,
-    scale_factor=0.5,
+    scale_factor=1.0,  # unscaled; HipTorqueProfile applies the user scale once
     control_Hz=100,
 ):
     spline_x = np.array(
