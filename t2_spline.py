@@ -87,7 +87,14 @@ def plot_default_spline(
     fig, ax = plt.subplots(figsize=(10, 4))
     ax.plot(percent_gc, torque_nm, color="tab:blue")
     ax.axhline(0, color="black", linewidth=0.8, linestyle="--")
-    ax.set_xlabel("Gait cycle (%)")
+    ax.axvline(0, color="gray", linestyle="--", linewidth=1)
+    ax.text(0.5, 0.02, "heel strike", transform=ax.get_xaxis_transform(),
+            rotation=90, va="bottom", ha="left", color="gray")
+    ax.text(1.01, 0.75, "Flexion (+) ↑", transform=ax.transAxes, rotation=90,
+            va="center", ha="left", color="tab:green", fontweight="bold")
+    ax.text(1.01, 0.25, "↓ Extension (−)", transform=ax.transAxes, rotation=90,
+            va="center", ha="left", color="tab:red", fontweight="bold")
+    ax.set_xlabel("Gait cycle (%), 0 = heel strike")
     ax.set_ylabel("Hip torque (Nm)")
     ax.set_title(
         f"TBE hip torque spline (scale={scale_factor:.2f}, delay={delay_percent_gc:.1f}%)"

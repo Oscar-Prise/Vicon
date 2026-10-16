@@ -48,6 +48,18 @@ def reconstruct_gait(time, cmd):
 	return heel_strikes, gc, np.array(strides)
 
 
+def label_directions(ax) -> None:
+	"""Mark heel strike and the flexion (+) / extension (-) torque directions."""
+	ax.axhline(0, color="black", linewidth=0.8)
+	ax.axvline(0, color="gray", linestyle="--", linewidth=1)
+	ax.text(0.5, 0.02, "heel strike", transform=ax.get_xaxis_transform(),
+		rotation=90, va="bottom", ha="left", color="gray")
+	ax.text(1.01, 0.75, "Flexion (+) ↑", transform=ax.transAxes, rotation=90,
+		va="center", ha="left", color="tab:green", fontweight="bold")
+	ax.text(1.01, 0.25, "↓ Extension (−)", transform=ax.transAxes, rotation=90,
+		va="center", ha="left", color="tab:red", fontweight="bold")
+
+
 def main() -> None:
 	df = pd.read_csv(CSV_PATH).iloc[START_ROW:END_ROW]
 	time = df["time"].to_numpy()
@@ -81,12 +93,13 @@ def main() -> None:
 		mean, std = strides.mean(axis=0), strides.std(axis=0)
 		ax.plot(x, mean, color=color, linewidth=2, label=f"{col} mean (n={len(strides)})")
 		ax.fill_between(x, mean - std, mean + std, color=color, alpha=0.25)
-	ax.set_xlabel("gait cycle (%)")
-	ax.set_ylabel("motor command")
+	label_directions(ax)
+	ax.set_xlabel("gait cycle (%), 0 = heel strike")
+	ax.set_ylabel("motor command (Nm)")
 	ax.set_title("Torque profile vs gait cycle (mean ± SD)")
 	ax.set_xlim(0, 100)
 	ax.grid(True, alpha=0.3)
-	ax.legend()
+	ax.legend(loc="upper left")
 	fig2.tight_layout()
 
 	fig1.savefig(OUTPUT_PATH_OVERVIEW, dpi=160)

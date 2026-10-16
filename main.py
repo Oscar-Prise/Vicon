@@ -239,8 +239,12 @@ def main():
                 # copL = mocap_trigger.send_copL
                 # Frz = mocap_trigger.send_Frz
                 # Flz = mocap_trigger.send_Flz
-                percent_gcR = mocap_trigger.send_percent_gcR
-                percent_gcL = mocap_trigger.send_percent_gcL
+                raw_gcR = mocap_trigger.send_percent_gcR
+                raw_gcL = mocap_trigger.send_percent_gcL
+                # Cap to one stride: values > 1 (missed/late heel strike) would
+                # otherwise wrap around and command torque from the wrong phase.
+                percent_gcR = float(np.clip(raw_gcR, 0.0, 1.0))
+                percent_gcL = float(np.clip(raw_gcL, 0.0, 1.0))
                 mocap_data_available = True
 
                 # time_needed = time_recv - time_sent
@@ -252,7 +256,7 @@ def main():
                 with open(mocap_log_csv, "a", newline="", encoding="utf-8") as f:
                     writer = csv.writer(f)
                     # writer.writerow([time_sent, time_recv, copR, copL, Frz, Flz])
-                    writer.writerow([time_sent, time_recv, percent_gcR, percent_gcL])
+                    writer.writerow([time_sent, time_recv, raw_gcR, raw_gcL])  # raw, uncapped
             else:
                 # Mocap client is running but no data yet - use defaults
                 trigger = None
@@ -297,8 +301,11 @@ def main():
         # 10. Stream live motor data to Teleplot
         teleplot.sendValue('pos_L', -current_pos_L)  # flexion positive on both sides
         teleplot.sendValue('pos_R', current_pos_R)
-        teleplot.sendValue('gc_L', percent_gcL)
+        teleplot.sendValue('gc_L', percent_gcL)  # capped 0-1 (what the controller uses)
         teleplot.sendValue('gc_R', percent_gcR)
+        if mocap_data_available:
+            teleplot.sendValue('gc_L_raw', raw_gcL)  # uncapped, to spot overshoot
+            teleplot.sendValue('gc_R_raw', raw_gcR)
         teleplot.sendValue('cmd_L', cmdL)
         teleplot.sendValue('cmd_R', cmdR)
 
