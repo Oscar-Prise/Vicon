@@ -4,10 +4,26 @@ import matplotlib.pyplot as plt
 import numpy as np
 from scipy.interpolate import CubicHermiteSpline
 
-# Franks et al. 2021 supplement, note 5, "Hips-Only" Average row.
+# Franks et al. 2021 supplement, note 5 (optimized hip parameters).
 # Times are % stride on the hip timer, which starts at 84% of the previous
-# stride; gp_offset = 16 converts them to % from heel strike.
+# stride; gp_offset = 16 converts them to % from heel strike. Extension torque
+# therefore starts before heel strike and is already applied at gc = 0.
+
+# "Hips-Only" P1 row: -0.214 Nm/kg at heel strike, ext peak 10%, flex peak 65%.
 DEFAULT_SPLINE_PARAMS = {
+    "peak_time": 25.9,       # HE PS Peak
+    "rise_time": 17.6,       # HE RT
+    "mid_time": 47.2,        # mid PS
+    "mid_dur": 2.0,          # mid Dur
+    "peak_time_2": 81.4,     # HF PS
+    "fall_time": 24.4,       # HF FT
+    "gp_offset": 16,
+    "peak_extension_torque": -0.525,  # HE Torque (Nm/kg)
+    "peak_flexion_torque": 0.339,     # HF T (Nm/kg)
+}
+
+# "Hips-Only" Average row: -0.130 Nm/kg at heel strike, ext peak 10%, flex peak 66%.
+FRANKS_HIPS_AVG_SPLINE_PARAMS = {
     "peak_time": 26.2,       # HE PS Peak
     "rise_time": 16.4,       # HE RT
     "mid_time": 48.6,        # mid PS

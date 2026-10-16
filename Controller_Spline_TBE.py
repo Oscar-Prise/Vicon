@@ -10,6 +10,7 @@ from Utils_Teleplot import Teleplot
 from Utils import lowpass_filter, fast_roll, cleanup_can, save_data, cartesian_to_percentage, NumpyCompatUnpickler, causal_filter
 from scipy.signal import find_peaks
 from scipy.interpolate import CubicHermiteSpline
+from t2_spline import DEFAULT_SPLINE_PARAMS  # Franks 2021 hip profile, shared with main.py
 
 
 class Spline_TBE:
@@ -35,10 +36,7 @@ class Spline_TBE:
         #     gp_offset = 16, peak_extension_torque = -0.370, peak_flexion_torque = 0.221,
         #     ) # LG, from Supplementary Item of https://doi.org/10.1109/TNSRE.2022.3196665 
 
-        self.spline = self.spline_generator(
-            peak_time = 34, rise_time = 18.8, mid_time = 47.1, mid_dur = 1.3, peak_time_2 = 82.2, fall_time = 21.4,
-            gp_offset = 16, peak_extension_torque = -0.370, peak_flexion_torque = 0.221,
-            ) # LG, from Supplementary Item of https://doi.org/10.1109/TNSRE.2022.3196665        
+        self.spline = self.spline_generator(**DEFAULT_SPLINE_PARAMS)
 
         if self.trigger_type == 'overground':
             gc_offset = 50
@@ -177,8 +175,8 @@ class Spline_TBE:
         vel_L, vel_R = 0.0, 0.0
         imu_L, imu_R, imu_P = np.zeros(6), np.zeros(6), np.zeros(6)
         GRF_L, GRF_R = 0.0, 0.0
-        spline_params_L = {'peak_time': 34, 'rise_time': 18.8, 'mid_time': 47.1, 'mid_dur': 1.3, 'peak_time_2': 82.2, 'fall_time': 21.4, 'gp_offset': 16, 'peak_extension_torque': -0.370, 'peak_flexion_torque': 0.221}
-        spline_params_R = {'peak_time': 34, 'rise_time': 18.8, 'mid_time': 47.1, 'mid_dur': 1.3, 'peak_time_2': 82.2, 'fall_time': 21.4, 'gp_offset': 16, 'peak_extension_torque': -0.370, 'peak_flexion_torque': 0.221}
+        spline_params_L = dict(DEFAULT_SPLINE_PARAMS)
+        spline_params_R = dict(DEFAULT_SPLINE_PARAMS)
 
         # Initialize update latency trackers
         update_latency_R, update_latency_L = 0.0, 0.0
