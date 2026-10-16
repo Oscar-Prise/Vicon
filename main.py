@@ -22,7 +22,7 @@ trial_start_sec = 1
 target_duration_sec = 61
 target_time_range = 61
 exo_ON = True
-scale_factor = 0.2 # 0–1, scales spline peak torque (0 = off, 1 = full profile)
+scale_factor = 0.6 # 0–1, scales spline peak torque (0 = off, 1 = full profile)
 track_gait_phase = True  # extrapolate gait % between ~30 Hz mocap packets (False = use raw packet value)
 delay_factor = -10  # gait-cycle % shift along x-axis (positive = peaks occur later)
 duration = 0
@@ -41,11 +41,11 @@ gpio_first_pulse_sec = 2.0
 gpio_pulse_duration_sec = 0.05
 
 # Motors: "ak80-9" (CubeMars) or "robstride02"
-motor_type = "ak80-9"
-can_id_L = 3
+motor_type = "robstride02"
+can_id_L = 1
 can_id_R = 2
 motor_channel = "can0"
-torque_limit = 15.0  # AK80-9 hard limit is 18 Nm
+torque_limit = 17.0  # max commanded torque (Nm); AK80-9 hard limit is 18 Nm
 control_freq_Hz = 100
 
 # Teleplot (live UDP telemetry)
