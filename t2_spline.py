@@ -4,8 +4,23 @@ import matplotlib.pyplot as plt
 import numpy as np
 from scipy.interpolate import CubicHermiteSpline
 
-# LG, from Supplementary Item of https://doi.org/10.1109/TNSRE.2022.3196665
+# Franks et al. 2021 supplement, note 5, "Hips-Only" Average row.
+# Times are % stride on the hip timer, which starts at 84% of the previous
+# stride; gp_offset = 16 converts them to % from heel strike.
 DEFAULT_SPLINE_PARAMS = {
+    "peak_time": 26.2,       # HE PS Peak
+    "rise_time": 16.4,       # HE RT
+    "mid_time": 48.6,        # mid PS
+    "mid_dur": 1.6,          # mid Dur
+    "peak_time_2": 81.9,     # HF PS
+    "fall_time": 24.7,       # HF FT
+    "gp_offset": 16,
+    "peak_extension_torque": -0.404,  # HE Torque (Nm/kg)
+    "peak_flexion_torque": 0.286,     # HF T (Nm/kg)
+}
+
+# Previous profile: LG, from Supplementary Item of https://doi.org/10.1109/TNSRE.2022.3196665
+TNSRE_LG_SPLINE_PARAMS = {
     "peak_time": 34,
     "rise_time": 18.8,
     "mid_time": 47.1,

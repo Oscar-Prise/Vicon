@@ -5,7 +5,7 @@ import numpy as np
 import pandas as pd
 from scipy.signal import find_peaks
 
-from t2_spline import DEFAULT_SPLINE_PARAMS, spline_generator
+from t2_spline import DEFAULT_SPLINE_PARAMS, TNSRE_LG_SPLINE_PARAMS, spline_generator
 
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -21,7 +21,10 @@ STRIDE_TOL = 0.3  # keep strides within +/-30% of the median stride time
 # command. The command is spline[gc%], whose extension (negative) peak always
 # occurs at the same gait-cycle %. Each extension peak is therefore an anchor
 # at gc = PEAK_GC, and gc is linearly interpolated between consecutive peaks.
-PEAK_GC = float(np.argmin(spline_generator(**DEFAULT_SPLINE_PARAMS)))
+# Must be the profile the CSV was recorded with: the scale_0.35 trial used the
+# old TNSRE LG profile; use DEFAULT_SPLINE_PARAMS for trials after the switch.
+PROFILE_PARAMS = TNSRE_LG_SPLINE_PARAMS
+PEAK_GC = float(np.argmin(spline_generator(**PROFILE_PARAMS)))
 
 
 def reconstruct_gait(time, cmd):
