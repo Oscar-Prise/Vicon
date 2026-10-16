@@ -9,6 +9,7 @@ from motors import make_motor_group
 from utils_gpio import GpioPulse, SyncPulse
 from utils_teleplot import Teleplot
 from t2_spline import HipTorqueProfile
+from gait_phase import GaitPhaseTracker
 import csv
 
 # =============================================================================
@@ -21,10 +22,11 @@ trial_start_sec = 1
 target_duration_sec = 61
 target_time_range = 61
 exo_ON = True
-scale_factor = 0.35 # 0–1, scales spline peak torque (0 = off, 1 = full profile)
-delay_factor = 0  # gait-cycle % shift along x-axis (positive = peaks occur later)
+scale_factor = 0.2 # 0–1, scales spline peak torque (0 = off, 1 = full profile)
+track_gait_phase = True  # extrapolate gait % between ~30 Hz mocap packets (False = use raw packet value)
+delay_factor = -10  # gait-cycle % shift along x-axis (positive = peaks occur later)
 duration = 0
-body_mass_kg = 80
+body_mass_kg = 56
 
 # Trigger: "mocap" or "typing"
 trigger_type = "mocap"
@@ -195,6 +197,7 @@ def main():
     tsentList = []
     trecvList = []
     percent_gcL, percent_gcR = 0.0, 0.0
+    gait_tracker_L, gait_tracker_R = GaitPhaseTracker(), GaitPhaseTracker()
     mocap_data_available = False
 
     # Wait for the trigger to start the trial (Maria)
@@ -243,8 +246,15 @@ def main():
                 raw_gcL = mocap_trigger.send_percent_gcL
                 # Cap to one stride: values > 1 (missed/late heel strike) would
                 # otherwise wrap around and command torque from the wrong phase.
-                percent_gcR = float(np.clip(raw_gcR, 0.0, 1.0))
-                percent_gcL = float(np.clip(raw_gcL, 0.0, 1.0))
+                if track_gait_phase:
+                    # Advance the last packet's phase to "now" (loop is 100 Hz,
+                    # packets arrive ~30 Hz) instead of reusing a stale value.
+                    now = time.time()
+                    percent_gcR = gait_tracker_R.update(raw_gcR, time_sent, time_recv, now)
+                    percent_gcL = gait_tracker_L.update(raw_gcL, time_sent, time_recv, now)
+                else:
+                    percent_gcR = float(np.clip(raw_gcR, 0.0, 1.0))
+                    percent_gcL = float(np.clip(raw_gcL, 0.0, 1.0))
                 mocap_data_available = True
 
                 # time_needed = time_recv - time_sent
@@ -256,7 +266,7 @@ def main():
                 with open(mocap_log_csv, "a", newline="", encoding="utf-8") as f:
                     writer = csv.writer(f)
                     # writer.writerow([time_sent, time_recv, copR, copL, Frz, Flz])
-                    writer.writerow([time_sent, time_recv, raw_gcR, raw_gcL])  # raw, uncapped
+                    writer.writerow([time_sent, time_recv, raw_gcR, raw_gcL, percent_gcR, percent_gcL])  # raw (uncapped), then value used for control
             else:
                 # Mocap client is running but no data yet - use defaults
                 trigger = None

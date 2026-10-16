@@ -9,10 +9,10 @@ from t2_spline import DEFAULT_SPLINE_PARAMS, TNSRE_LG_SPLINE_PARAMS, spline_gene
 
 
 BASE_DIR = Path(__file__).resolve().parent
-CSV_PATH = BASE_DIR / "test_run" / "AB01_1_scale_0.35_output_torque.csv"
+CSV_PATH = BASE_DIR / "test_run" / "AB01_1_scale_0.2_output_torque.csv"
 
-OUTPUT_PATH_OVERVIEW = BASE_DIR / "test_run" / "AB01_1_scale_0.35_output_torque_mtr_cmd_plot.png"
-OUTPUT_PATH_PROFILE = BASE_DIR / "test_run" / "AB01_1_scale_0.35_output_torque_gait_profile_plot.png"
+OUTPUT_PATH_OVERVIEW = BASE_DIR / "test_run" / "AB01_1_scale_0.2_output_torque_mtr_cmd_plot.png"
+OUTPUT_PATH_PROFILE = BASE_DIR / "test_run" / "AB01_1_scale_0.2_output_torque_gait_profile_plot.png"
 
 START_ROW, END_ROW = 500, 4000
 STRIDE_TOL = 0.3  # keep strides within +/-30% of the median stride time
@@ -29,26 +29,40 @@ PEAK_GC = float(np.argmin(spline_generator(**PROFILE_PARAMS)))
 
 
 def reconstruct_gait(time, cmd):
-	"""Return (heel_strike_times, gc_percent_per_sample, strides) for one leg."""
+	"""Return (heel_strike_times, gc_percent_per_sample, strides) for one leg.
+
+	Phase is anchored at each extension peak (gc = PEAK_GC) and is linear in
+	time between consecutive peaks, so it is continuous and every heel strike
+	is exactly where the phase crosses 0/100%.
+	"""
 	peaks, _ = find_peaks(-cmd, height=0.5 * np.max(-cmd), distance=30)
 	t_pk = time[peaks]
 	periods = np.diff(t_pk)
 	median_T = np.median(periods)
+	good = np.abs(periods - median_T) <= STRIDE_TOL * median_T  # False = pause / missed peak
 
-	# Heel strike = PEAK_GC percent of a stride before each peak.
-	heel_strikes = t_pk[1:] - PEAK_GC / 100.0 * periods
+	# Unwrapped phase in percent: PEAK_GC at peak 0, +100 per peak.
+	phase_pk = PEAK_GC + 100.0 * np.arange(len(t_pk))
+	phase = np.interp(time, t_pk, phase_pk, left=np.nan, right=np.nan)
+	seg = np.clip(np.searchsorted(t_pk, time, side="right") - 1, 0, len(good) - 1)
+	phase[~good[seg]] = np.nan  # no gait info inside bad intervals
+	gc = phase % 100.0
 
-	gc = np.full(len(time), np.nan)
+	# Heel strikes: where the phase crosses a multiple of 100.
+	m_all = np.arange(1, len(t_pk))  # crossing between peak m-1 and m
+	heel_strikes = np.interp(100.0 * m_all, phase_pk, t_pk)
+	heel_strikes = heel_strikes[(heel_strikes > t_pk[0]) & (heel_strikes < t_pk[-1])]
+
+	# One stride = heel strike to next heel strike, only if all of it is valid.
 	strides = []
-	for k, T in enumerate(periods):
-		if abs(T - median_T) > STRIDE_TOL * median_T:
-			continue  # pause / dropped stride
-		t0 = heel_strikes[k]
-		t1 = t0 + T
+	x = np.linspace(0, 100, 101)
+	for t0, t1 in zip(heel_strikes[:-1], heel_strikes[1:]):
 		mask = (time >= t0) & (time < t1)
-		gc[mask] = 100.0 * (time[mask] - t0) / T
-		if mask.sum() > 5:
-			strides.append(np.interp(np.linspace(0, 100, 101), gc[mask], cmd[mask]))
+		if mask.sum() < 20 or np.isnan(phase[mask]).any():
+			continue
+		if abs((t1 - t0) - median_T) > STRIDE_TOL * median_T:
+			continue
+		strides.append(np.interp(x, 100.0 * (time[mask] - t0) / (t1 - t0), cmd[mask]))
 	return heel_strikes, gc, np.array(strides)
 
 
