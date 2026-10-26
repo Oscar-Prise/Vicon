@@ -19,14 +19,14 @@ import csv
 # Trial
 subject = 'AB01'
 trial_start_sec = 1
-target_duration_sec = 61
-target_time_range = 61
+target_duration_sec = 31
+target_time_range = 31
 exo_ON = True
-scale_factor = 0.15 # 0–1, scales spline peak torque (0 = off, 1 = full profile)
+scale_factor = 0.35 # 0–1, scales spline peak torque (0 = off, 1 = full profile)
 track_gait_phase = True  # extrapolate gait % between ~30 Hz mocap packets (False = use raw packet value)
 delay_factor = -10  # gait-cycle % shift along x-axis (positive = peaks occur later)
 duration = 0
-body_mass_kg = 74
+body_mass_kg = 74.5
 
 # Trigger: "mocap" or "typing"
 trigger_type = "mocap"
@@ -55,6 +55,7 @@ teleplot_port = 47269
 # Vicon / mocap server
 mocap_server_ip = "172.24.44.177"
 mocap_port = 11
+mocap_stale_timeout_sec = 0.5  # no mocap packet for this long -> command 0 Nm
 
 # =============================================================================
 # Runtime state (set during execution — do not edit)
@@ -235,7 +236,18 @@ def main():
         # 1. Read the motor encoder values
         # Check if we have received first mocap data
         if trigger_type == "mocap" and mocap_trigger is not None:
-            if mocap_trigger.first_data_received.is_set():
+            # Trial is over once the mocap server closes the connection: stop
+            # the motors (0 Nm), save the data and exit, same as Ctrl+C.
+            if mocap_trigger.first_data_received.is_set() and not mocap_trigger.running:
+                print("Mocap connection closed - stopping motors and saving data.")
+                exit_signal_handler(None, None)
+
+            # Also treat a stalled stream as "no data": command 0 Nm instead of
+            # holding the last gait phase.
+            mocap_stale = (mocap_trigger.first_data_received.is_set() and
+                           (time.time() - mocap_trigger.recv_time) > mocap_stale_timeout_sec)
+
+            if mocap_trigger.first_data_received.is_set() and not mocap_stale:
                 time_sent = mocap_trigger.send_time
                 time_recv = mocap_trigger.recv_time
                 # copR = mocap_trigger.send_copR
@@ -284,7 +296,8 @@ def main():
             pcmdL, pcmdR = hip_torque_profile.torque_from_percent_gc_lr(
                 percent_gcL, percent_gcR
             )
-            print(percent_gcL,percent_gcR,pcmdL,pcmdR)
+            if not exo_ON:  # avoid 100 Hz console spam when data is just missing/stale
+                print(percent_gcL,percent_gcR,pcmdL,pcmdR)
 
         motors.set_torque(cmdL, cmdR)
         (
