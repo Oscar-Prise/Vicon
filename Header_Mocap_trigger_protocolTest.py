@@ -49,12 +49,12 @@ class Mocap_trigger:
         try:
             print("[STREAMING] Receiving data from server...")
             buffer = ""
-            log_file = "latency_log.csv"
+            # log_file = "latency_log.csv"
 
-            if not os.path.exists(log_file):
-                with open(log_file, mode='w', newline='') as f:
-                    writer = csv.writer(f)
-                    writer.writerow(["Latency_ms"])
+            # if not os.path.exists(log_file):
+            #     with open(log_file, mode='w', newline='') as f:
+            #         writer = csv.writer(f)
+            #         writer.writerow(["Latency_ms"])
 
             latencies = []
             self.running = True
@@ -111,9 +111,9 @@ class Mocap_trigger:
 
                         latency = (self.recv_time - self.send_time) * 1000
 
-                        with open(log_file, mode='a', newline='') as f:
-                            writer = csv.writer(f)
-                            writer.writerow([latency])
+                        # with open(log_file, mode='a', newline='') as f:
+                        #     writer = csv.writer(f)
+                        #     writer.writerow([latency])
 
                         latencies.append(latency)
                         if len(latencies) > 100:

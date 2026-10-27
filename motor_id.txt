@@ -1,0 +1,7 @@
+Exo V3 (Cubemars)
+can_id_L = 3
+can_id_R = 2
+
+Exo V2.5 (Robstride)
+can_id_L = 1
+can_id_R = 2

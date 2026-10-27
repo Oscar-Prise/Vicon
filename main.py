@@ -16,36 +16,45 @@ import csv
 # Configuration — edit before each trial
 # =============================================================================
 
-# Trial
+# Subject / trial naming
+# Output files are named: date_subject_exo_exocondition_terrain_torque_delay
+# e.g. 10_26_2026_AB01_V2_ExoOn_LG1p2_15Nm_delay-10
 subject = 'AB01'
+body_mass_kg = 74.5
+exo_version = 'V2.5'
+exo_ON = True            # also sets the name's exo condition (ExoOn / ExoOff)
+terrain = 'LG1p2'
+torque_label = '15Nm'
+scale_factor = 0.35      # 0–1, scales spline peak torque (0 = off, 1 = full profile)
+
+# Motors: "ak80-9" (CubeMars) or "robstride02"
+motor_type = "robstride02"
+can_id_L = 1
+can_id_R = 2
+
+# Output paths
+OUTPUT_DIR = 'data'
+record_data = False       # False = run the trial without saving CSVs
+
+# Trial timing
 trial_start_sec = 1
 target_duration_sec = 31
 target_time_range = 31
-exo_ON = True
-scale_factor = 0.35 # 0–1, scales spline peak torque (0 = off, 1 = full profile)
 track_gait_phase = True  # extrapolate gait % between ~30 Hz mocap packets (False = use raw packet value)
-delay_factor = -10  # gait-cycle % shift along x-axis (positive = peaks occur later)
+delay_factor = 5  # gait-cycle % shift along x-axis (positive = peaks occur later)
 duration = 0
-body_mass_kg = 74.5
 
 # Trigger: "mocap" or "typing"
 trigger_type = "mocap"
-
-# Output paths
-OUTPUT_DIR = 'test_run'
-mocap_log_csv = 'output.csv'
 
 # GPIO sync pulses (for Vicon / external recording)
 gpio_pin = 7
 gpio_first_pulse_sec = 2.0
 gpio_pulse_duration_sec = 0.05
 
-# Motors: "ak80-9" (CubeMars) or "robstride02"
-motor_type = "ak80-9"
-can_id_L = 3
-can_id_R = 2
+# Motor bus
 motor_channel = "can0"
-torque_limit = 17.0  # max commanded torque (Nm); AK80-9 hard limit is 18 Nm
+torque_limit = 17.0  # max commanded torque (Nm)
 control_freq_Hz = 100
 
 # Teleplot (live UDP telemetry)
@@ -60,8 +69,8 @@ mocap_stale_timeout_sec = 0.5  # no mocap packet for this long -> command 0 Nm
 # =============================================================================
 # Runtime state (set during execution — do not edit)
 # =============================================================================
-trial_num = None
 trial_name = None
+mocap_log_csv = None
 
 # data to be saved (changed to lists for efficient appending)
 data_to_save = {
@@ -138,7 +147,10 @@ def exit_signal_handler(sig, frame):
     
     motors.disconnect()
 
-    save_data(trial_start_sec, target_duration_sec)
+    if record_data:
+        save_data(trial_start_sec, target_duration_sec)
+    else:
+        print("record_data is False - data not saved")
     if gpio_pulse is not None:
         gpio_pulse.cleanup()
     if teleplot is not None:
@@ -275,10 +287,10 @@ def main():
                 # tsentList.append(time_sent)
                 # trecvList.append(time_recv)
 
-                with open(mocap_log_csv, "a", newline="", encoding="utf-8") as f:
-                    writer = csv.writer(f)
-                    # writer.writerow([time_sent, time_recv, copR, copL, Frz, Flz])
-                    writer.writerow([time_sent, time_recv, raw_gcR, raw_gcL, percent_gcR, percent_gcL])  # raw (uncapped), then value used for control
+                # with open(mocap_log_csv, "a", newline="", encoding="utf-8") as f:
+                #     writer = csv.writer(f)
+                #     # writer.writerow([time_sent, time_recv, copR, copL, Frz, Flz])
+                #     writer.writerow([time_sent, time_recv, raw_gcR, raw_gcL, percent_gcR, percent_gcL])  # raw (uncapped), then value used for control
             else:
                 # Mocap client is running but no data yet - use defaults
                 trigger = None
@@ -347,10 +359,18 @@ if __name__ == '__main__':
     # Garbage collection
     gc.collect()
 
-    # Prompt for trial number in parent process only (prevents child processes
-    # created with multiprocessing 'spawn' from re-running the prompt)
-    trial_num = int(input("Enter trial number: "))
-    trial_name = f'{subject}_{trial_num}_scale_{scale_factor}'
+    exo_condition = 'ExoOn' if exo_ON else 'ExoOff'
+    delay_tag = f'delay{delay_factor:g}'.replace('.', 'p')  # e.g. delay-10, delay2p5
+    trial_name = (f'{time.strftime("%m_%d_%Y")}_{subject}_{exo_version}_'
+                  f'{exo_condition}_{terrain}_{torque_label}_{delay_tag}')
+    os.makedirs(OUTPUT_DIR, exist_ok=True)
+    # Never overwrite a previous trial with the same settings: append _2, _3, ...
+    base_name, repeat = trial_name, 1
+    while os.path.exists(f'{OUTPUT_DIR}/{trial_name}_output_torque.csv'):
+        repeat += 1
+        trial_name = f'{base_name}_{repeat}'
+    # mocap_log_csv = f'{OUTPUT_DIR}/{trial_name}_mocap.csv'
+    print(f'Trial name: {trial_name}')
 
     teleplot = Teleplot(teleplot_host, teleplot_port)
 
