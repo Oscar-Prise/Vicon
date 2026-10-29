@@ -21,15 +21,15 @@ import csv
 # e.g. 10_26_2026_AB01_V2_ExoOn_LG1p2_15Nm_delay-10
 subject = 'AB01'
 body_mass_kg = 74.5
-exo_version = 'V2.5'
+exo_version = 'V3'
 exo_ON = True            # also sets the name's exo condition (ExoOn / ExoOff)
 terrain = 'LG1p2'
 torque_label = '15Nm'
-scale_factor = 0.35      # 0–1, scales spline peak torque (0 = off, 1 = full profile)
+scale_factor = 0.15      # 0–1, scales spline peak torque (0 = off, 1 = full profile)
 
 # Motors: "ak80-9" (CubeMars) or "robstride02"
-motor_type = "robstride02"
-can_id_L = 1
+motor_type = "ak80-9"
+can_id_L = 3
 can_id_R = 2
 
 # Output paths
